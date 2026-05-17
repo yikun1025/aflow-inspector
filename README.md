@@ -3,7 +3,7 @@
 Static viewer + tutorial for [AFlow](https://github.com/FoundationAgents/AFlow) workflow traces.
 Produced from running AFlow's trained workflows on Qwen2.5-7B-Instruct-AWQ across 4 benchmarks.
 
-🔗 **Live demo**: https://fangyikunjian.github.io/aflow-inspector/
+🔗 **Live demo**: https://yikun1025.github.io/aflow-inspector/
 
 ## What's here
 
