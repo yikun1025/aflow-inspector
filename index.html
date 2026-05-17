@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AFlow Workflow Inspector</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+:root { color-scheme: dark; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+.mono { font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; }
+.scrollthin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollthin::-webkit-scrollbar-thumb { background: #3a3f4b; border-radius: 3px; }
+.scrollthin::-webkit-scrollbar-track { background: transparent; }
+.cat-CORRECT { background: #166534; }
+.cat-PARTIAL { background: #854d0e; }
+.cat-REASONING_FAIL { background: #7f1d1d; }
+.cat-VOTING_FAIL { background: #a16207; }
+.cat-FORMAT_FAIL { background: #6b21a8; }
+.cat-EXTRACTION_BUG { background: #1d4ed8; }
+.cat-OTHER_FAIL { background: #374151; }
+.dot-CORRECT { background: #22c55e; }
+.dot-PARTIAL { background: #eab308; }
+.dot-REASONING_FAIL { background: #ef4444; }
+.dot-VOTING_FAIL { background: #f97316; }
+.dot-FORMAT_FAIL { background: #a855f7; }
+.dot-EXTRACTION_BUG { background: #3b82f6; }
+.dot-OTHER_FAIL { background: #6b7280; }
+.mermaid-container svg { max-width: 100%; height: auto; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary { list-style: none; cursor: pointer; }
+.gold-hit { background: rgba(34, 197, 94, 0.25); padding: 0 2px; border-radius: 2px; }
+.dropzone.dragover { border-color: #60a5fa; background: rgba(96,165,250,0.08); }
+</style>
+</head>
+<body class="bg-[#0d1117] text-gray-200 h-screen overflow-hidden">
+
+<!-- Top bar -->
+<header class="h-12 px-4 flex items-center justify-between border-b border-gray-800 bg-[#161b22]">
+  <div class="flex items-center gap-3">
+    <span class="text-lg font-semibold">⚡ AFlow Inspector</span>
+    <span id="filename" class="text-xs text-gray-500 mono"></span>
+  </div>
+  <div class="flex items-center gap-3 text-xs">
+    <label class="cursor-pointer text-blue-400 hover:text-blue-300">
+      <input id="file-input" type="file" accept=".jsonl" class="hidden">
+      📂 Load traces.jsonl
+    </label>
+    <button id="export-btn" class="text-gray-500 hover:text-gray-300" disabled>⤓ Export DAG PNG</button>
+  </div>
+</header>
+
+<!-- Initial dropzone -->
+<div id="welcome" class="h-[calc(100vh-3rem)] flex flex-col items-center justify-center p-8 gap-6">
+  <label id="dropzone" class="dropzone block w-[640px] border-2 border-dashed border-gray-700 rounded-xl p-10 text-center cursor-pointer hover:bg-[#161b22]">
+    <input id="file-input-2" type="file" accept=".jsonl" class="hidden">
+    <div class="text-5xl mb-3">📥</div>
+    <div class="text-lg mb-2">Drop a <code class="mono text-blue-400">traces.jsonl</code> here</div>
+    <div class="text-sm text-gray-500 max-w-md mx-auto">
+      Produced by <code class="mono">aflow_runner_traced.py</code>. Each line = one query with full node-level trace.
+    </div>
+  </label>
+
+  <!-- Sample data buttons -->
+  <div id="sample-section" class="w-[640px] hidden">
+    <div class="text-center text-gray-500 text-xs uppercase tracking-wider mb-3">— or load a bundled sample —</div>
+    <div class="grid grid-cols-4 gap-2" id="sample-buttons">
+      <button data-sample="hotpotqa" class="sample-btn px-3 py-2.5 rounded-lg border border-gray-700 hover:border-blue-500 hover:bg-[#161b22] text-sm transition-colors">
+        <div class="font-medium">HotpotQA</div>
+        <div class="text-xs text-gray-500 mt-0.5">n=200 · 66.9%</div>
+      </button>
+      <button data-sample="drop" class="sample-btn px-3 py-2.5 rounded-lg border border-gray-700 hover:border-blue-500 hover:bg-[#161b22] text-sm transition-colors">
+        <div class="font-medium">DROP</div>
+        <div class="text-xs text-gray-500 mt-0.5">n=200 · 64.6%</div>
+      </button>
+      <button data-sample="gsm8k" class="sample-btn px-3 py-2.5 rounded-lg border border-gray-700 hover:border-blue-500 hover:bg-[#161b22] text-sm transition-colors">
+        <div class="font-medium">GSM8K</div>
+        <div class="text-xs text-gray-500 mt-0.5">n=200 · 90.0%</div>
+      </button>
+      <button data-sample="math" class="sample-btn px-3 py-2.5 rounded-lg border border-gray-700 hover:border-blue-500 hover:bg-[#161b22] text-sm transition-colors">
+        <div class="font-medium">MATH</div>
+        <div class="text-xs text-gray-500 mt-0.5">n=200 · 72.5%</div>
+      </button>
+    </div>
+    <div id="sample-status" class="text-center text-xs text-gray-500 mt-3"></div>
+  </div>
+</div>
+
+<!-- Main inspector (hidden until file loaded) -->
+<div id="app" class="hidden h-[calc(100vh-3rem)] flex">
+
+  <!-- Sidebar: stats + filters + query list -->
+  <aside class="w-80 border-r border-gray-800 bg-[#0f141a] flex flex-col">
+    <!-- Stats summary -->
+    <div class="p-3 border-b border-gray-800">
+      <div class="text-xs text-gray-500 mb-2">SUMMARY</div>
+      <div id="summary" class="text-sm space-y-1"></div>
+    </div>
+    <!-- Filters -->
+    <div class="p-3 border-b border-gray-800 space-y-2">
+      <div class="text-xs text-gray-500">FILTERS</div>
+      <input id="search" placeholder="Search problem text or id…" class="w-full px-2 py-1 bg-[#0d1117] border border-gray-700 rounded text-sm focus:outline-none focus:border-blue-500">
+      <div id="cat-filters" class="grid grid-cols-2 gap-1 text-xs"></div>
+      <label class="text-xs flex items-center gap-2">
+        <input type="checkbox" id="failed-only" class="accent-red-500">
+        Only show score &lt; 1.0
+      </label>
+    </div>
+    <!-- Query list -->
+    <div class="flex-1 overflow-y-auto scrollthin" id="query-list"></div>
+  </aside>
+
+  <!-- Main detail pane -->
+  <main class="flex-1 overflow-y-auto scrollthin" id="detail-pane">
+    <div class="p-8 text-center text-gray-500">Pick a query on the left to inspect.</div>
+  </main>
+</div>
+
+<script>
+// ============================================================
+// State + utilities
+// ============================================================
+const STATE = {
+  rows: [],
+  filteredRows: [],
+  selectedIdx: null,
+  filename: "",
+  catFilter: new Set(),  // empty = show all
+};
+
+const CAT_ORDER = ["CORRECT", "PARTIAL", "REASONING_FAIL", "VOTING_FAIL", "FORMAT_FAIL", "EXTRACTION_BUG", "OTHER_FAIL"];
+const CAT_LABELS = {
+  CORRECT: "Correct",
+  PARTIAL: "Partial",
+  REASONING_FAIL: "Reasoning fail",
+  VOTING_FAIL: "Voting fail",
+  FORMAT_FAIL: "Format fail",
+  EXTRACTION_BUG: "Extraction bug",
+  OTHER_FAIL: "Other",
+};
+
+function normalize(s) {
+  s = (s || "").toLowerCase();
+  s = s.replace(/\b(a|an|the)\b/g, " ");
+  s = s.replace(/[!"#$%&'()*+,\-./:;<=>?@\[\]^_`{|}~]/g, "");
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
+function containsGold(text, gold) {
+  if (!gold) return false;
+  const golds = String(gold).includes("|") ? String(gold).split("|") : [String(gold)];
+  const T = normalize(text);
+  return golds.some(g => g.trim() && T.includes(normalize(g.trim())));
+}
+
+function classify(rec) {
+  const score = rec.score ?? 0;
+  if (score >= 0.99) return "CORRECT";
+  const gold = String(rec.gold || "");
+  const final = String(rec.final_answer || "");
+  const trace = rec.trace || [];
+
+  let solutions = [];
+  let scChosen = null;
+  let fmtInput = null, fmtOutput = final;
+  for (const step of trace) {
+    const s = step.step || "";
+    const out = (step.output && typeof step.output === "object") ? step.output : {};
+    if (s.startsWith("AnswerGenerate")) {
+      solutions.push(out.answer || "");
+    } else if (s.startsWith("Custom_MATH_SOLVE") || s.startsWith("Custom_GENERATE") || s === "Custom_DETAILED" || s === "Custom_REFINE") {
+      solutions.push(out.response || "");
+    } else if (s === "ScEnsemble") {
+      scChosen = out.response || "";
+      if (Array.isArray(step.solutions)) solutions = step.solutions;
+    } else if (s === "Custom_FORMAT") {
+      fmtInput = step.input || "";
+      fmtOutput = out.response ?? final;
+    }
+  }
+
+  const anyHasGold = solutions.some(s => containsGold(s, gold));
+  if (!anyHasGold) return "REASONING_FAIL";
+  if (scChosen !== null && !containsGold(scChosen, gold)) return "VOTING_FAIL";
+  if (scChosen !== null && containsGold(scChosen, gold) && !containsGold(fmtOutput, gold)) return "FORMAT_FAIL";
+  if (containsGold(final, gold) && score < 0.5) return "EXTRACTION_BUG";
+  if (score > 0 && score < 0.99) return "PARTIAL";
+  return "OTHER_FAIL";
+}
+
+// ============================================================
+// File loading
+// ============================================================
+function setupFileInputs() {
+  const handle = file => loadJsonlFile(file);
+  document.getElementById("file-input").addEventListener("change", e => e.target.files[0] && handle(e.target.files[0]));
+  document.getElementById("file-input-2").addEventListener("change", e => e.target.files[0] && handle(e.target.files[0]));
+  const dz = document.getElementById("dropzone");
+  ["dragenter", "dragover"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("dragover"); }));
+  ["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("dragover"); }));
+  dz.addEventListener("drop", e => {
+    const f = e.dataTransfer.files[0];
+    if (f) handle(f);
+  });
+
+  // Sample-data buttons (only show if served over http/https — file:// can't fetch)
+  const sampleSection = document.getElementById("sample-section");
+  if (location.protocol === "http:" || location.protocol === "https:") {
+    sampleSection.classList.remove("hidden");
+    document.querySelectorAll(".sample-btn").forEach(btn => {
+      btn.addEventListener("click", () => loadSample(btn.dataset.sample));
+    });
+  }
+}
+
+async function loadJsonlText(text, displayName) {
+  STATE.filename = displayName;
+  document.getElementById("filename").textContent = displayName;
+  const rows = text.split("\n").filter(l => l.trim()).map((line, i) => {
+    try {
+      const obj = JSON.parse(line);
+      obj.__category = classify(obj);
+      obj.__idx = i;
+      return obj;
+    } catch (err) {
+      console.error("parse error line", i, err);
+      return null;
+    }
+  }).filter(Boolean);
+  STATE.rows = rows;
+  STATE.filteredRows = rows;
+  STATE.selectedIdx = rows.length ? 0 : null;
+  document.getElementById("welcome").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  renderSummary();
+  renderCatFilters();
+  renderQueryList();
+  if (STATE.selectedIdx !== null) renderDetail(rows[STATE.selectedIdx]);
+}
+
+async function loadJsonlFile(file) {
+  const text = await file.text();
+  await loadJsonlText(text, file.name);
+}
+
+async function loadSample(bench) {
+  const status = document.getElementById("sample-status");
+  status.textContent = `Loading ${bench}…`;
+  try {
+    const r = await fetch(`samples/${bench}.jsonl`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const text = await r.text();
+    await loadJsonlText(text, `samples/${bench}.jsonl`);
+  } catch (e) {
+    status.textContent = `Failed: ${e.message}. Make sure samples/${bench}.jsonl exists alongside this HTML.`;
+  }
+}
+
+// ============================================================
+// Stats + filters render
+// ============================================================
+function renderSummary() {
+  const total = STATE.rows.length;
+  const avg = total ? STATE.rows.reduce((a, r) => a + (r.score || 0), 0) / total : 0;
+  const counts = {};
+  for (const c of CAT_ORDER) counts[c] = 0;
+  for (const r of STATE.rows) counts[r.__category] = (counts[r.__category] || 0) + 1;
+  const el = document.getElementById("summary");
+  el.innerHTML = `
+    <div class="flex justify-between"><span>Total:</span><span class="mono">${total}</span></div>
+    <div class="flex justify-between"><span>Avg score:</span><span class="mono text-blue-400">${(avg * 100).toFixed(1)}%</span></div>
+    <div class="border-t border-gray-800 mt-2 pt-2 space-y-0.5">
+      ${CAT_ORDER.filter(c => counts[c]).map(c => `
+        <div class="flex justify-between items-center text-xs">
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full inline-block dot-${c}"></span>${CAT_LABELS[c]}</span>
+          <span class="mono text-gray-400">${counts[c]} (${(counts[c] / total * 100).toFixed(1)}%)</span>
+        </div>`).join("")}
+    </div>`;
+}
+
+function renderCatFilters() {
+  const counts = {};
+  for (const r of STATE.rows) counts[r.__category] = (counts[r.__category] || 0) + 1;
+  const el = document.getElementById("cat-filters");
+  el.innerHTML = CAT_ORDER.filter(c => counts[c]).map(c => `
+    <label class="flex items-center gap-1.5 cursor-pointer hover:text-white">
+      <input type="checkbox" data-cat="${c}" class="cat-checkbox accent-blue-500">
+      <span class="w-2 h-2 rounded-full inline-block dot-${c}"></span>
+      <span class="truncate" title="${CAT_LABELS[c]}">${CAT_LABELS[c]}</span>
+    </label>`).join("");
+  el.querySelectorAll(".cat-checkbox").forEach(cb => {
+    cb.addEventListener("change", e => {
+      const cat = e.target.dataset.cat;
+      if (e.target.checked) STATE.catFilter.add(cat);
+      else STATE.catFilter.delete(cat);
+      applyFilters();
+    });
+  });
+}
+
+function applyFilters() {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const failedOnly = document.getElementById("failed-only").checked;
+  STATE.filteredRows = STATE.rows.filter(r => {
+    if (STATE.catFilter.size && !STATE.catFilter.has(r.__category)) return false;
+    if (failedOnly && (r.score || 0) >= 0.99) return false;
+    if (q) {
+      const hay = ((r.query_id || "") + " " + (r.problem || "") + " " + (r.gold || "") + " " + (r.final_answer || "")).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  renderQueryList();
+}
+
+document.addEventListener("input", e => {
+  if (e.target.id === "search" || e.target.id === "failed-only") applyFilters();
+});
+
+// ============================================================
+// Query list
+// ============================================================
+function renderQueryList() {
+  const el = document.getElementById("query-list");
+  el.innerHTML = STATE.filteredRows.map((r, i) => `
+    <div class="query-item border-b border-gray-900 p-2.5 cursor-pointer hover:bg-[#1a2028] ${r.__idx === STATE.selectedIdx ? 'bg-[#1a2028]' : ''}" data-idx="${r.__idx}">
+      <div class="flex items-center justify-between mb-1">
+        <span class="mono text-xs text-gray-400 truncate">${r.query_id || ('#' + r.__idx)}</span>
+        <span class="mono text-xs ${r.score >= 0.99 ? 'text-green-400' : r.score > 0 ? 'text-yellow-400' : 'text-red-400'}">${((r.score || 0) * 100).toFixed(0)}%</span>
+      </div>
+      <div class="flex items-center gap-1.5 mb-1">
+        <span class="w-1.5 h-1.5 rounded-full inline-block dot-${r.__category}"></span>
+        <span class="text-[10px] uppercase tracking-wider text-gray-500">${CAT_LABELS[r.__category]}</span>
+      </div>
+      <div class="text-xs text-gray-400 line-clamp-2">${escapeHTML((r.problem || "").slice(0, 100))}</div>
+    </div>`).join("");
+  el.querySelectorAll(".query-item").forEach(node => {
+    node.addEventListener("click", () => {
+      STATE.selectedIdx = parseInt(node.dataset.idx);
+      const row = STATE.rows.find(r => r.__idx === STATE.selectedIdx);
+      el.querySelectorAll(".query-item").forEach(n => n.classList.remove("bg-[#1a2028]"));
+      node.classList.add("bg-[#1a2028]");
+      if (row) renderDetail(row);
+    });
+  });
+}
+
+// ============================================================
+// Detail render: DAG + per-step
+// ============================================================
+function buildMermaidDef(trace, scoreOK, foldRepeats = true) {
+  // Group same-base step names (#1, #2 → "AnswerGenerate (×3)"). For other steps keep as-is.
+  const groups = [];
+  let lastBase = null;
+  for (const step of trace) {
+    const m = step.step.match(/^(.+)#(\d+)$/);
+    const base = m ? m[1] : step.step;
+    if (foldRepeats && m && lastBase === base) {
+      groups[groups.length - 1].count++;
+      groups[groups.length - 1].steps.push(step);
+    } else {
+      groups.push({ base, count: m ? 1 : null, steps: [step], originalName: step.step });
+      lastBase = base;
+    }
+  }
+
+  const lines = ["flowchart TD", `  Q(["📝 Problem"]):::input`];
+  let prev = "Q";
+  groups.forEach((g, i) => {
+    const id = `N${i}`;
+    const label = g.count ? `${g.base} ×${g.count}` : g.base;
+    let cls = "op";
+    if (g.base.includes("AnswerGenerate") || g.base.includes("Custom_MATH_SOLVE") || g.base.includes("Custom_GENERATE") || g.base === "Custom_DETAILED") cls = "gen";
+    if (g.base === "ScEnsemble") cls = "ens";
+    if (g.base === "Custom_FORMAT" || g.base === "Custom_REFINE") cls = "fmt";
+    if (g.base === "Programmer") cls = "prog";
+    if (g.base === "FINAL_choice") cls = "final";
+    lines.push(`  ${id}["${label}"]:::${cls}`);
+    lines.push(`  ${prev} --> ${id}`);
+    prev = id;
+  });
+  lines.push(`  A(["🎯 Final Answer"]):::${scoreOK ? "good" : "bad"}`);
+  lines.push(`  ${prev} --> A`);
+
+  // styles
+  lines.push("classDef input fill:#1f2937,stroke:#6b7280,color:#fff");
+  lines.push("classDef gen fill:#1e3a8a,stroke:#3b82f6,color:#dbeafe");
+  lines.push("classDef ens fill:#78350f,stroke:#f59e0b,color:#fef3c7");
+  lines.push("classDef fmt fill:#581c87,stroke:#a855f7,color:#f3e8ff");
+  lines.push("classDef prog fill:#064e3b,stroke:#10b981,color:#d1fae5");
+  lines.push("classDef final fill:#374151,stroke:#9ca3af,color:#fff");
+  lines.push("classDef op fill:#374151,stroke:#6b7280,color:#fff");
+  lines.push("classDef good fill:#166534,stroke:#22c55e,color:#bbf7d0");
+  lines.push("classDef bad fill:#7f1d1d,stroke:#ef4444,color:#fecaca");
+  return { def: lines.join("\n"), groups };
+}
+
+function highlightGold(text, gold) {
+  if (!gold || !text) return escapeHTML(text || "");
+  const golds = String(gold).includes("|") ? gold.split("|") : [gold];
+  let html = escapeHTML(text);
+  for (const g of golds) {
+    const gt = g.trim();
+    if (!gt) continue;
+    // Case-insensitive replace, escaping regex special chars
+    const re = new RegExp(gt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    html = html.replace(re, m => `<mark class="gold-hit">${m}</mark>`);
+  }
+  return html;
+}
+
+function escapeHTML(s) {
+  return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+async function renderDetail(row) {
+  const score = row.score ?? 0;
+  const cat = row.__category;
+  const trace = row.trace || [];
+  const { def, groups } = buildMermaidDef(trace, score >= 0.99);
+
+  const pane = document.getElementById("detail-pane");
+  pane.innerHTML = `
+    <div class="p-6 max-w-5xl mx-auto">
+      <!-- Header row -->
+      <div class="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <div class="text-xs text-gray-500 mono mb-1">${escapeHTML(row.query_id || ('idx ' + row.__idx))}</div>
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-0.5 rounded text-xs uppercase tracking-wider cat-${cat}">${CAT_LABELS[cat]}</span>
+            <span class="text-sm">Score: <span class="mono ${score >= 0.99 ? 'text-green-400' : score > 0 ? 'text-yellow-400' : 'text-red-400'}">${(score * 100).toFixed(1)}%</span></span>
+            ${row.elapsed_s ? `<span class="text-xs text-gray-500">⏱ ${row.elapsed_s.toFixed(1)}s</span>` : ""}
+          </div>
+        </div>
+      </div>
+
+      <!-- Problem + gold + final -->
+      <div class="grid grid-cols-1 gap-3 mb-6">
+        <div class="bg-[#161b22] border border-gray-800 rounded p-3">
+          <div class="text-xs text-gray-500 mb-1">PROBLEM ${row.problem_truncated ? "(truncated)" : ""}</div>
+          <div class="text-sm whitespace-pre-wrap break-words max-h-48 overflow-y-auto scrollthin">${escapeHTML(row.problem || "")}</div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-[#0f1c14] border border-green-900 rounded p-3">
+            <div class="text-xs text-green-500 mb-1">GOLD</div>
+            <div class="text-sm mono break-words">${escapeHTML(row.gold || "")}</div>
+          </div>
+          <div class="bg-[#1c0f0f] border ${score >= 0.99 ? 'border-green-900' : 'border-red-900'} rounded p-3">
+            <div class="text-xs ${score >= 0.99 ? 'text-green-500' : 'text-red-500'} mb-1">FINAL ANSWER</div>
+            <div class="text-sm break-words">${highlightGold(row.final_answer || "", row.gold)}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DAG -->
+      <div class="mb-6">
+        <div class="text-xs text-gray-500 mb-2 flex items-center justify-between">
+          <span>WORKFLOW DAG <span class="text-gray-600">(per-step details below)</span></span>
+        </div>
+        <div id="mermaid-host" class="mermaid-container bg-[#161b22] border border-gray-800 rounded p-4 overflow-x-auto"></div>
+      </div>
+
+      <!-- Per-step details -->
+      <div>
+        <div class="text-xs text-gray-500 mb-2">PER-STEP DETAILS</div>
+        <div class="space-y-2">
+          ${groups.map((g, i) => renderGroupStep(g, i, row.gold)).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Render Mermaid
+  const host = document.getElementById("mermaid-host");
+  const containerId = "mermaid-" + Date.now();
+  host.innerHTML = `<div class="mermaid" id="${containerId}">${def}</div>`;
+  try {
+    await mermaid.run({ nodes: [document.getElementById(containerId)] });
+    document.getElementById("export-btn").disabled = false;
+  } catch (e) {
+    host.innerHTML = `<pre class="text-xs text-red-400 whitespace-pre-wrap">${escapeHTML("Mermaid render error: " + e.message + "\n\n" + def)}</pre>`;
+  }
+}
+
+function renderGroupStep(group, idx, gold) {
+  const stepsHTML = group.steps.map((step, si) => {
+    const out = step.output || {};
+    const fields = [];
+    if (step.input) fields.push(["input", step.input]);
+    if (step.instruction_excerpt) fields.push(["instruction (excerpt)", step.instruction_excerpt + " ..."]);
+    if (Array.isArray(step.solutions)) fields.push(["solutions (input to ScEnsemble)", step.solutions.map((s, i) => `[${i}] ${s}`).join("\n\n")]);
+    if (out.thought) fields.push(["thought", out.thought]);
+    if (out.answer !== undefined) fields.push(["answer", out.answer]);
+    if (out.response !== undefined) fields.push(["response", out.response]);
+    if (out.code !== undefined && out.code !== null) fields.push(["code", out.code]);
+    if (out.output !== undefined) fields.push(["output", out.output]);
+    if (step.exception) fields.push(["exception", step.exception]);
+    if (step.error) fields.push(["error", step.error]);
+    if (!fields.length && step.output) fields.push(["raw", JSON.stringify(step.output, null, 2)]);
+
+    return `
+      <details open class="bg-[#0f141a] border border-gray-800 rounded">
+        <summary class="px-3 py-2 flex items-center justify-between hover:bg-[#161b22]">
+          <span class="text-sm mono">${step.step}</span>
+          <span class="text-xs text-gray-500">${fields.length} field${fields.length !== 1 ? 's' : ''}</span>
+        </summary>
+        <div class="px-3 pb-3 space-y-2 border-t border-gray-800">
+          ${fields.map(([k, v]) => `
+            <div>
+              <div class="text-[10px] uppercase tracking-wider text-gray-500 mt-2 mb-1">${k}</div>
+              <div class="text-sm whitespace-pre-wrap break-words mono bg-[#0d1117] border border-gray-800 rounded p-2 max-h-64 overflow-y-auto scrollthin">${highlightGold(String(v), gold)}</div>
+            </div>`).join("")}
+        </div>
+      </details>`;
+  }).join("");
+
+  const header = group.count
+    ? `<div class="text-xs text-gray-500 mb-1.5 mt-3 first:mt-0 uppercase tracking-wider">${group.base} (×${group.count} parallel)</div>`
+    : "";
+  return header + stepsHTML;
+}
+
+// ============================================================
+// Export DAG as PNG
+// ============================================================
+document.getElementById("export-btn").addEventListener("click", () => {
+  const svg = document.querySelector("#mermaid-host svg");
+  if (!svg) return;
+  const xml = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([xml], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    const scale = 2;
+    canvas.width = img.width * scale;
+    canvas.height = img.height * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#0d1117";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0);
+    canvas.toBlob(b => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(b);
+      a.download = `dag_${STATE.selectedIdx}.png`;
+      a.click();
+    });
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+});
+
+// ============================================================
+// Init
+// ============================================================
+mermaid.initialize({
+  startOnLoad: false,
+  theme: "dark",
+  themeVariables: { darkMode: true, background: "#161b22", primaryColor: "#1e3a8a", primaryTextColor: "#dbeafe", lineColor: "#6b7280" },
+  flowchart: { curve: "linear", nodeSpacing: 30, rankSpacing: 40 },
+});
+
+setupFileInputs();
+</script>
+</body>
+</html>

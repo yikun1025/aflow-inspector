@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AFlow Tutorial — 从零理解 Agentic Workflow Optimization</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+:root {
+  --bg: #fbfaf7;
+  --surface: #ffffff;
+  --text: #1f2937;
+  --text-muted: #6b7280;
+  --heading: #111827;
+  --accent: #2563eb;
+  --accent-light: #eff6ff;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+
+  --code-bg: #f7f7f5;
+  --code-text: #1f2937;
+  --c-kw: #c41d7f;
+  --c-fn: #531dab;
+  --c-str: #389e0d;
+  --c-com: #8c8c8c;
+  --c-num: #0958d9;
+
+  --aha-bg: #fffbeb;
+  --aha-border: #f59e0b;
+  --aha-title: #92400e;
+
+  --warn-bg: #fef2f2;
+  --warn-border: #f87171;
+
+  --info-bg: #eff6ff;
+  --info-border: #3b82f6;
+
+  --tip-bg: #f0fdf4;
+  --tip-border: #4ade80;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.mono {
+  font-family: "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  font-feature-settings: "calt" 0, "liga" 0;
+}
+
+/* ---------- Top bar ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  height: 56px;
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  width: 280px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  position: sticky; top: 56px;
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+  padding: 24px 16px;
+}
+.toc-section-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 0 12px;
+  margin-bottom: 8px;
+}
+.toc-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  border-left: 3px solid transparent;
+  border-radius: 0 6px 6px 0;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.toc-item:hover { background: var(--accent-light); color: var(--accent); }
+.toc-item.active {
+  background: var(--accent-light);
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 600;
+}
+.toc-num {
+  display: inline-block;
+  width: 22px; height: 22px; line-height: 22px; text-align: center;
+  font-size: 11px; font-weight: 700;
+  background: var(--border); color: var(--text-muted);
+  border-radius: 50%;
+}
+.toc-item.active .toc-num { background: var(--accent); color: white; }
+
+/* ---------- Main content ---------- */
+main {
+  flex: 1; min-width: 0;
+}
+.content-wrap {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 32px 96px;
+}
+
+/* ---------- Typography ---------- */
+h2 {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--heading);
+  margin-top: 0;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+h2 .chapter-label {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--heading);
+  margin-top: 40px;
+  margin-bottom: 14px;
+  letter-spacing: -0.01em;
+}
+p { margin-bottom: 14px; }
+ul, ol { margin-bottom: 14px; padding-left: 24px; }
+ul li, ol li { margin-bottom: 8px; }
+.section {
+  scroll-margin-top: 72px;
+  margin-bottom: 64px;
+}
+.section + .section { border-top: 1px solid var(--border); padding-top: 48px; }
+.lede { font-size: 17px; color: var(--text); margin-bottom: 24px; }
+
+a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+
+strong { color: var(--heading); font-weight: 700; }
+em { color: var(--text); }
+
+code:not(pre code) {
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: #6b21a8;
+  border: 1px solid var(--border);
+}
+
+/* ---------- Code blocks ---------- */
+.code-block {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 16px 0;
+}
+.code-block pre, .code-block code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--code-text);
+}
+.code-block code {
+  display: block;
+  padding: 16px 20px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  white-space: pre;
+}
+.kw  { color: var(--c-kw);  font-weight: 600; }
+.fn  { color: var(--c-fn); }
+.str { color: var(--c-str); }
+.com { color: var(--c-com); }
+.num { color: var(--c-num); }
+
+/* ---------- Callouts ---------- */
+.callout {
+  display: block;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 20px 0;
+  border-left: 4px solid;
+}
+.callout-title {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.aha {
+  background: var(--aha-bg);
+  border-color: var(--aha-border);
+}
+.aha .callout-title { color: var(--aha-title); }
+
+.warn {
+  background: var(--warn-bg);
+  border-color: var(--warn-border);
+}
+.warn .callout-title { color: #b91c1c; }
+
+.info {
+  background: var(--info-bg);
+  border-color: var(--info-border);
+}
+.info .callout-title { color: #1d4ed8; }
+
+.tip {
+  background: var(--tip-bg);
+  border-color: var(--tip-border);
+}
+.tip .callout-title { color: #15803d; }
+
+/* ---------- Operator cards ---------- */
+.op-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px;
+  margin: 16px 0;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.op-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.08);
+}
+.op-card h3 {
+  margin-top: 0;
+  display: flex; align-items: center; gap: 10px;
+}
+.op-card h3 .op-icon { font-size: 24px; }
+.op-card h3 .op-name {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 15px;
+  background: var(--accent-light);
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* ---------- Tables ---------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+thead { background: var(--code-bg); }
+th { text-align: left; padding: 10px 14px; font-weight: 600; color: var(--heading); border-bottom: 1px solid var(--border); }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--code-bg); }
+
+/* ---------- Mermaid container ---------- */
+.mermaid-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  margin: 20px 0;
+  overflow-x: auto;
+  text-align: center;
+}
+.mermaid-container svg { max-width: 100%; height: auto; }
+
+/* ---------- Misc ---------- */
+.tree-line {
+  font-family: "JetBrains Mono", monospace;
+  white-space: pre;
+  line-height: 1.55;
+  font-size: 13px;
+}
+.footer {
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+  margin-top: 48px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.footer p { margin-bottom: 8px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<header class="topbar flex items-center justify-between px-6">
+  <div class="flex items-center gap-3">
+    <span class="text-lg font-bold" style="color: var(--heading);">🌊 AFlow Tutorial</span>
+    <span class="text-sm" style="color: var(--text-muted);">从零理解 Agentic Workflow Optimization</span>
+  </div>
+  <div class="text-sm">
+    <a href="aflow_inspector.html">🔍 Trace inspector →</a>
+  </div>
+</header>
+
+<div class="flex">
+
+  <!-- Sidebar TOC -->
+  <aside class="sidebar">
+    <div class="toc-section-label">Chapters</div>
+    <nav id="toc" class="space-y-0.5"></nav>
+    <div class="toc-section-label mt-8">Quick refs</div>
+    <div class="space-y-0.5">
+      <a href="https://github.com/FoundationAgents/AFlow" target="_blank" class="toc-item">
+        <span class="text-base">📦</span> <span>AFlow GitHub</span>
+      </a>
+      <a href="https://arxiv.org/abs/2410.10762" target="_blank" class="toc-item">
+        <span class="text-base">📄</span> <span>AFlow paper</span>
+      </a>
+      <a href="EXPERIMENT_REPORT.md" target="_blank" class="toc-item">
+        <span class="text-base">📊</span> <span>实验报告</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main>
+    <div class="content-wrap">
+
+      <!-- =================== CH 1: Intro =================== -->
+      <section id="ch-intro" class="section">
+        <h2>
+          <span class="chapter-label">Chapter 1 · 30 sec 速读</span>
+          🌊 AFlow 是什么?
+        </h2>
+        <p class="lede">
+          AFlow(<a href="https://github.com/FoundationAgents/AFlow" target="_blank">FoundationAgents/AFlow</a>)
+          是 MetaGPT 团队 2024 年发的一个框架。一句话:
+          <strong>让 LLM 自动给你设计 prompt + workflow 结构</strong>,免去你手写 CoT / ReAct / Self-Consistency 的工作。
+        </p>
+
+        <div class="callout warn">
+          <span class="callout-title">⚠️ 它解决的问题</span>
+          你要给 LLM 做一个任务(比如 multi-hop QA),怎么写 prompt 最有效?手写 CoT 还是 ReAct?
+          每种方法在不同 task 上效果不一样,而且都是凭直觉拼出来的。<strong>不可证明最优</strong>。
+        </div>
+
+        <div class="callout info">
+          <span class="callout-title">💡 它的解法</span>
+          把"agentic workflow"看作一个 <strong>DAG of LLM calls</strong>(节点 = operator,边 = 数据流)。
+          搜这个空间。用 MCTS 找局部最优 workflow。
+        </div>
+
+        <p>训练完得到的产出:一对 Python 文件 <code>graph.py</code>(workflow DAG 代码)+ <code>prompt.py</code>(workflow 用的 prompt 字符串)。
+          import 进去就能在新数据上跑这个最优 workflow。</p>
+
+        <div class="callout aha">
+          <span class="callout-title">💡 Aha moment</span>
+          AFlow <strong>不发明新的 prompting technique</strong>。它只是搜索"如何最优地组合已有的 operator"(CoT、ensemble、refine、verify 等)。
+          所以它的产出是<em>组合方案</em>,不是新算法。
+        </div>
+      </section>
+
+      <!-- =================== CH 2: Mental model =================== -->
+      <section id="ch-model" class="section">
+        <h2>
+          <span class="chapter-label">Chapter 2 · 核心抽象</span>
+          🧠 心智模型
+        </h2>
+        <p>一个 AFlow workflow,本质上就是这么个 Python class:</p>
+
+        <div class="code-block"><code><span class="kw">class</span> <span class="fn">Workflow</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, llm_config):
+        <span class="kw">self</span>.llm = create_llm_instance(llm_config)
+        <span class="com"># 准备这个 workflow 要用的几个 Operator 实例</span>
+        <span class="kw">self</span>.answer_generate = <span class="fn">AnswerGenerate</span>(<span class="kw">self</span>.llm)
+        <span class="kw">self</span>.sc_ensemble = <span class="fn">ScEnsemble</span>(<span class="kw">self</span>.llm)
+        <span class="kw">self</span>.custom = <span class="fn">Custom</span>(<span class="kw">self</span>.llm)
+
+    <span class="kw">async def</span> <span class="fn">__call__</span>(<span class="kw">self</span>, problem: <span class="kw">str</span>):
+        <span class="com"># 这里写 workflow 的 DAG 逻辑</span>
+        result, cost = ..., ...
+        <span class="kw">return</span> result, cost
+</code></div>
+
+        <p>记住这 3 点就够:</p>
+        <ul>
+          <li>Workflow 是个 <strong>async class</strong>,核心是 <code>__call__(problem)</code> 方法</li>
+          <li>里头通过 <code>await</code> 调一连串 <strong>Operator</strong>(LLM call 的 reusable 模板)</li>
+          <li>DAG 是<strong>隐式</strong>的——就是 await 顺序 + 数据依赖。AFlow 没有显式 graph definition</li>
+        </ul>
+
+        <div class="callout aha">
+          <span class="callout-title">💡 Aha moment</span>
+          所有 AFlow trained workflow 都长这样。所以"理解 AFlow"约等于"理解几个核心 Operator 怎么工作"。这就是下一章。
+        </div>
+      </section>
+
+      <!-- =================== CH 3: Repo structure =================== -->
+      <section id="ch-repo" class="section">
+        <h2>
+          <span class="chapter-label">Chapter 3 · 仓库导览</span>
+          📦 Repo 结构
+        </h2>
+        <p>把 AFlow 仓库 clone 下来,你会看到:</p>
+
+        <div class="code-block"><code class="tree-line"><span class="fn">AFlow/</span>
+├── <span class="fn">scripts/</span>            <span class="com"># 核心框架代码</span>
+│   ├── operators.py        <span class="com"># LEGO 砖块 — Custom / AnswerGenerate / ScEnsemble / Programmer / ...</span>
+│   ├── async_llm.py        <span class="com"># 异步 LLM client(OpenAI 兼容 HTTP)</span>
+│   ├── optimizer.py        <span class="com"># MCTS 搜索器(训练时用)</span>
+│   ├── evaluator.py        <span class="com"># 跑 workflow + 评分</span>
+│   ├── operator_an.py      <span class="com"># Operator 元信息(供 optimizer 改 workflow 用)</span>
+│   └── prompts/            <span class="com"># 内置 prompt 模板(Operator 自己用的)</span>
+│
+├── <span class="fn">benchmarks/</span>         <span class="com"># 任务特定的评测器</span>
+│   ├── hotpotqa.py         <span class="com"># F1 / EM 评分,处理 multi-hop QA 格式</span>
+│   ├── drop.py             <span class="com"># DROP 阅读理解</span>
+│   ├── gsm8k.py            <span class="com"># grade school math</span>
+│   ├── math.py             <span class="com"># Hendrycks MATH</span>
+│   ├── humaneval.py / mbpp.py    <span class="com"># 代码生成</span>
+│   └── benchmark.py        <span class="com"># BaseBenchmark + run_evaluation</span>
+│
+├── <span class="fn">data/results/</span>       <span class="com"># 训练产出</span>
+│   ├── HotpotQA/
+│   │   ├── graphs/round_1/{graph.py, prompt.py}     <span class="com"># 训练每一轮的 best workflow</span>
+│   │   ├── graphs/round_2/...
+│   │   ├── ... round_21/
+│   │   └── graphs_test/round_3/      <span class="com"># 选出来的 FINAL best</span>
+│   ├── DROP/  (round_1..21, best round_3)
+│   ├── GSM8K/ (round_1..25 + ablation, best round_10)
+│   └── MATH/  (round_1..20, best round_5)
+│
+├── <span class="fn">config/</span>             <span class="com"># LLM API 配置(OpenAI key 等)</span>
+├── run.py              <span class="com"># 训练入口(MCTS 搜索)</span>
+└── run_baseline.py     <span class="com"># 不训练,直接跑 baseline workflow</span>
+</code></div>
+
+        <h3>3 个最重要的文件,优先读</h3>
+        <ol>
+          <li><code>scripts/operators.py</code> — 砖块全在这。读完知道 AFlow 能搭什么</li>
+          <li><code>data/results/HotpotQA/graphs_test/round_3/graph.py</code> — 一个训练好的 workflow 长啥样</li>
+          <li><code>benchmarks/hotpotqa.py</code> — 评测怎么做的</li>
+        </ol>
+      </section>
+
+      <!-- =================== CH 4: Operators =================== -->
+      <section id="ch-operators" class="section">
+        <h2>
+          <span class="chapter-label">Chapter 4 · LEGO 砖块</span>
+          🧱 核心 Operators
+        </h2>
+        <p>这一章把 4 个最关键的 operator 拆开看。每个都说<strong>签名、输入输出、什么时候用</strong>。</p>
+
+        <div class="op-card">
+          <h3>
+            <span class="op-icon">⚙️</span>
+            <span class="op-name">Custom</span>
+            <span>最通用的 LLM call</span>
+          </h3>
+          <p>任意 prompt + 任意 input,返回 <code>{"response": str}</code>。可以理解成"用我给的 prompt 调一次 LLM"。</p>
+          <div class="code-block"><code><span class="kw">async def</span> <span class="fn">__call__</span>(<span class="kw">self</span>, input: <span class="kw">str</span>, instruction: <span class="kw">str</span>):
+    <span class="com"># instruction 是 system-level 的 prompt</span>
+    <span class="com"># input 是当前 task 的具体内容</span>
+    <span class="com"># 返回 {"response": "..."}</span>
+</code></div>
+          <p><strong>典型用例</strong>:HotpotQA round_3 trained workflow 用它把 verbose 答案压缩成短 span。<code>instruction</code> 是训练好的 <code>FORMAT_ANSWER_PROMPT</code>。</p>
+        </div>
+
+        <div class="op-card">
+          <h3>
+            <span class="op-icon">❓</span>
+            <span class="op-name">AnswerGenerate</span>
+            <span>QA 格式回答</span>
+          </h3>
+          <p>给个问题,内置 prompt 让 LLM 输出 thought + answer。返回 <code>{"thought": str, "answer": str}</code>。</p>
+          <div class="code-block"><code><span class="kw">async def</span> <span class="fn">__call__</span>(<span class="kw">self</span>, input: <span class="kw">str</span>):
+    <span class="com"># prompt 内置 - 让 LLM 用 &lt;thought&gt;...&lt;/thought&gt;&lt;answer&gt;...&lt;/answer&gt; 格式回答</span>
+    <span class="com"># 解析后返回 {"thought": "...", "answer": "..."}</span>
+</code></div>
+          <p><strong>典型用例</strong>:HotpotQA workflow 里 3 次并行调用,生成 3 个 candidate answer。</p>
+        </div>
+
+        <div class="op-card">
+          <h3>
+            <span class="op-icon">🗳️</span>
+            <span class="op-name">ScEnsemble</span>
+            <span>自洽投票</span>
+          </h3>
+          <p>"Self-Consistency Ensemble"。给一组 candidate solutions,让 LLM 投票选最一致那个。返回 <code>{"thought": str, "response": str}</code>。</p>
+          <div class="code-block"><code><span class="kw">async def</span> <span class="fn">__call__</span>(<span class="kw">self</span>, solutions: List[<span class="kw">str</span>], problem: <span class="kw">str</span>):
+    <span class="com"># 内部 prompt 给 LLM 看 N 个 solutions,让它选一个</span>
+    <span class="com"># 实际用 letter (A/B/C) 投票,然后回填到 solutions[idx]</span>
+    <span class="com"># 返回 {"thought": "选 A 因为...", "response": solutions[A]}</span>
+</code></div>
+          <p><strong>典型用例</strong>:几乎所有 trained workflow 都用。3-5 个 candidate → 1 个 best。</p>
+          <div class="callout tip">
+            <span class="callout-title">✅ 实验数据</span>
+            在我们 Qwen2.5-7B 实验中,4 个 benchmark 的 voting error 都 ≤0.5%。这个 operator 在 weak model 上工作得非常好。
+          </div>
+        </div>
+
+        <div class="op-card">
+          <h3>
+            <span class="op-icon">🐍</span>
+            <span class="op-name">Programmer</span>
+            <span>生成并执行 Python</span>
+          </h3>
+          <p>让 LLM 写 Python 解题,然后真的<strong>跑代码</strong>(sandbox 里),拿 stdout 当答案。返回 <code>{"code": str, "output": str}</code>。</p>
+          <div class="code-block"><code><span class="kw">async def</span> <span class="fn">__call__</span>(<span class="kw">self</span>, problem: <span class="kw">str</span>, analysis: <span class="kw">str</span> = <span class="str">"None"</span>):
+    <span class="com"># 内部 retry 3 次:让 LLM 生成 def solve(): ... return result</span>
+    <span class="com"># 在 ProcessPoolExecutor sandbox 跑,timeout 30s</span>
+    <span class="com"># 失败时返回 {"code": None, "output": "No code generated"}</span>
+</code></div>
+          <p><strong>典型用例</strong>:MATH 和 GSM8K workflow 用它做"算术验证"。</p>
+          <div class="callout warn">
+            <span class="callout-title">⚠️ Weak model 上的失败</span>
+            Qwen-7B 在我们实验里几乎所有 Programmer 调用都返回 <code>"No code generated"</code>——代码格式要求严,小模型生不出。
+            这是 weak model 跑 paper workflow 的<strong>主要痛点</strong>。
+          </div>
+        </div>
+
+        <p style="color: var(--text-muted); font-size: 14px;">
+          还有 <code>Test, Format, Review, Revise, MdEnsemble</code> 等 — 主要给代码任务(HumanEval/MBPP)用。看 <code>scripts/operators.py</code> 全列表。
+        </p>
+
+        <div class="callout aha">
+          <span class="callout-title">💡 Aha moment</span>
+          AFlow 的 magic 在于:这些 Operator 都是<strong>预定义</strong>的(人写死的代码)。
+          MCTS 不学新 operator,只学"怎么排列、用什么 prompt 配置它们"。这把搜索空间从 ∞ 缩到可行。
+        </div>
+      </section>
+
+      <!-- =================== CH 5: Workflow anatomy =================== -->
+      <section id="ch-anatomy" class="section">
+        <h2>
+          <span class="chapter-label">Chapter 5 · 解剖一个真实 workflow</span>
+          🔬 完整流程拆解
+        </h2>
+        <p>看 AFlow 在 HotpotQA 上训出来的 best workflow(round_3):</p>
+
+        <div class="code-block"><code><span class="com"># data/results/HotpotQA/graphs_test/round_3/graph.py</span>
+<span class="kw">class</span> <span class="fn">Workflow</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, name, llm_config, dataset):
+        <span class="kw">self</span>.llm = <span class="fn">create_llm_instance</span>(llm_config)
+        <span class="kw">self</span>.custom = operator.<span class="fn">Custom</span>(<span class="kw">self</span>.llm)
+        <span class="kw">self</span>.answer_generate = operator.<span class="fn">AnswerGenerate</span>(<span class="kw">self</span>.llm)
+        <span class="kw">self</span>.sc_ensemble = operator.<span class="fn">ScEnsemble</span>(<span class="kw">self</span>.llm)
+
+    <span class="kw">async def</span> <span class="fn">__call__</span>(<span class="kw">self</span>, problem: <span class="kw">str</span>):
+        solutions = []
+        <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="num">3</span>):                                            <span class="com"># ← 3 次独立尝试</span>
+            initial_response = <span class="kw">await</span> <span class="kw">self</span>.answer_generate(input=problem)
+            solutions.append(initial_response[<span class="str">'answer'</span>])
+
+        ensemble_result = <span class="kw">await</span> <span class="kw">self</span>.sc_ensemble(solutions=solutions)   <span class="com"># ← 投票</span>
+        best_answer = ensemble_result[<span class="str">'response'</span>]
+
+        refined_solution = <span class="kw">await</span> <span class="kw">self</span>.custom(                            <span class="com"># ← 格式化</span>
+            input=<span class="str">f"Question: {problem}\nBest answer: {best_answer}"</span>,
+            instruction=prompt_custom.FORMAT_ANSWER_PROMPT
+        )
+        <span class="kw">return</span> refined_solution[<span class="str">'response'</span>], <span class="kw">self</span>.llm.cost_manager.total_cost
+</code></div>
+
+        <h3>对应的 DAG</h3>
+        <div class="mermaid-container">
+          <div class="mermaid">
+flowchart LR
+    Q([📝 problem]) --> AG1[AnswerGenerate#1]
+    Q --> AG2[AnswerGenerate#2]
+    Q --> AG3[AnswerGenerate#3]
+    AG1 --> SC[ScEnsemble<br/>vote]
+    AG2 --> SC
+    AG3 --> SC
+    SC --> FMT[Custom<br/>FORMAT_ANSWER_PROMPT]
+    FMT --> A([🎯 final answer])
+    classDef gen fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
+    classDef ens fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    classDef fmt fill:#f3e8ff,stroke:#a855f7,color:#581c87
+    classDef io fill:#f3f4f6,stroke:#6b7280,color:#111827
+    class Q,A io
+    class AG1,AG2,AG3 gen
+    class SC ens
+    class FMT fmt
+          </div>
+        </div>
+
+        <h3>为啥是这个结构?</h3>
+        <ul>
+          <li><strong>3x AnswerGenerate</strong>:LLM 单次输出有随机性,3 次提高 recall(只要有一次答对了就行)</li>
+          <li><strong>ScEnsemble vote</strong>:从 3 个候选选最一致的(self-consistency)</li>
+          <li><strong>Custom + FORMAT_ANSWER_PROMPT</strong>:LLM 默认答得 verbose,这步压缩成 F1 友好的短 span</li>
+        </ul>
+
+        <h3>FORMAT prompt 长什么样?</h3>
+        <div class="code-block"><code><span class="com"># data/results/HotpotQA/graphs_test/round_3/prompt.py</span>
+FORMAT_ANSWER_PROMPT = <span class="str">"""
+Given the question and the best answer, format the final answer to be
+concise, accurate, and directly addressing the question. Ensure the answer
+is a clear, brief statement without additional explanation or reasoning.
+If the answer is a name, profession, or short phrase, provide only that
+information without forming a complete sentence.
+
+For example:
+- If the answer is a person's name, just provide the name.
+- If the answer is a profession, state only the profession.
+- If the answer is a short phrase, give only that phrase.
+
+Do not include any prefixes like "The answer is" or "The profession is".
+Just provide the answer itself.
+"""</span>
+</code></div>
+
+        <div class="callout aha">
+          <span class="callout-title">💡 Aha moment</span>
+          <strong>这个 prompt 是 AFlow 训出来的</strong>——不是人写的!
+          MCTS 搜索过程中,某一轮 LLM 提议了这个 prompt 改进,在 val set 上提分了,就被保留。
+          Paper 所谓的 "trained workflow" 主要训的就是这种 prompt 字符串。
+        </div>
+      </section>
+
+      <!-- =================== CH 6: Training =================== -->
+      <section id="ch-training" class="section">
+        <h2>
+          <span class="chapter-label">Chapter 6 · 搜索算法</span>
+          🔄 训练是怎么进行的
+        </h2>
+        <p>AFlow 用 <strong>MCTS-style search</strong> 找最优 workflow。流程如下:</p>
+
+        <div class="mermaid-container">
+          <div class="mermaid">
+flowchart TD
+    A[Seed workflow<br/>round_1: 简单结构] --> B[Optimizer LLM<br/>提议修改]
+    B --> C{修改类型}
+    C -->|Add operator| D[新 workflow]
+    C -->|Change prompt| D
+    C -->|Remove operator| D
+    C -->|Reorder| D
+    D --> E[在 val set 上跑]
+    E --> F[算 score<br/>F1 / accuracy]
+    F --> G{比当前 best 高?}
+    G -->|Yes| H[更新 best]
+    G -->|No| I[MCTS:<br/>探索 vs 利用]
+    H --> B
+    I --> B
+    classDef seed fill:#f3f4f6,stroke:#6b7280,color:#111827
+    classDef gen fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
+    classDef eval fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    classDef best fill:#dcfce7,stroke:#22c55e,color:#14532d
+    class A seed
+    class B,D gen
+    class E,F eval
+    class H best
+          </div>
+        </div>
+
+        <h3>关键设计</h3>
+        <ul>
+          <li><strong>Optimizer LLM</strong>:用一个更强的 LLM(paper 用 GPT-4o)当"workflow 改造师"。它看当前 workflow 代码 + 性能 + 失败案例,提议一个修改</li>
+          <li><strong>Executor LLM</strong>:用一个便宜 LLM(GPT-4o-mini)执行 workflow 来评分。这就是<em>训练时强 LLM 设计 workflow,inference 时弱 LLM 跑 workflow</em></li>
+          <li><strong>MCTS</strong>:不是每轮都改最 best 的。有概率 backtrack 到早期分支再分叉,避免 local optimum</li>
+        </ul>
+
+        <h3>真实训练数据(我们看到的 round 数)</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Benchmark</th>
+              <th>总训练轮数</th>
+              <th>Final best round</th>
+              <th>观察</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>HotpotQA</code></td><td>21 rounds</td><td><strong style="color:#15803d">round_3</strong></td><td>早期就收敛</td></tr>
+            <tr><td><code>DROP</code></td><td>21 rounds</td><td><strong style="color:#15803d">round_3</strong></td><td>同 HotpotQA</td></tr>
+            <tr><td><code>GSM8K</code></td><td>25 + ablation</td><td><strong style="color:#15803d">round_10</strong></td><td>搜得更深,加了 Programmer</td></tr>
+            <tr><td><code>MATH</code></td><td>20 rounds</td><td><strong style="color:#15803d">round_5</strong></td><td>折中</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout aha">
+          <span class="callout-title">💡 Aha moment</span>
+          <strong>最 best 的 round 通常很早</strong>——HotpotQA/DROP 第 3 轮、MATH 第 5 轮。
+          说明 MCTS 快速找到"够好"的结构后就 plateau 了。后面 20 轮基本是在 refine prompt。
+          这暗示<em>workflow 搜索空间不大,主要价值在 prompt tuning</em>。
+        </div>
+
+        <div class="callout info">
+          <span class="callout-title">💰 训练成本</span>
+          Paper 说每个 benchmark 训练成本 ~$5(以 GPT-4o-mini 为 executor,GPT-4o 为 optimizer)。
+          每轮要在 val set(~50-100 query)跑完整 workflow + optimizer 提议 + 评分,总 LLM call 在 1000s 级别。
+        </div>
+      </section>
+
+      <!-- =================== CH 7: Run it yourself =================== -->
+      <section id="ch-run" class="section">
+        <h2>
+          <span class="chapter-label">Chapter 7 · 上手实战</span>
+          🚀 怎么跑起来
+        </h2>
+
+        <h3>1. 安装 + 准备</h3>
+        <div class="code-block"><code>git clone https://github.com/FoundationAgents/AFlow
+<span class="kw">cd</span> AFlow
+pip install -r requirements.txt
+
+<span class="com"># 准备 LLM API key</span>
+<span class="kw">cp</span> config/config2.example.yaml config/config2.yaml
+<span class="com"># 编辑 config2.yaml,填 OpenAI key</span>
+</code></div>
+
+        <h3>2. 训练一个新的 workflow</h3>
+        <div class="code-block"><code><span class="com"># 训练 HotpotQA workflow,大约 $5,几小时</span>
+python run.py --dataset HotpotQA --sample_size 4 \
+              --question_type qa --optimized_path data/results
+</code></div>
+        <p>训练完输出 <code>data/results/HotpotQA/graphs/round_N/{graph.py, prompt.py}</code>。</p>
+
+        <h3>3. 直接用已训练好的 workflow(推荐)</h3>
+        <div class="code-block"><code><span class="com"># 用 paper 训好的 workflow 在新数据上 inference</span>
+<span class="kw">from</span> data.results.HotpotQA.graphs_test.round_3.graph <span class="kw">import</span> Workflow
+
+llm_config = {<span class="str">"model"</span>: <span class="str">"gpt-4o-mini"</span>, <span class="str">"api_key"</span>: <span class="str">"sk-..."</span>}
+workflow = <span class="fn">Workflow</span>(<span class="str">"hotpotqa"</span>, llm_config, dataset=<span class="str">"HotpotQA"</span>)
+
+answer, cost = <span class="kw">await</span> workflow(problem=<span class="str">"Who founded SpaceX?"</span>)
+</code></div>
+
+        <div class="callout warn">
+          <span class="callout-title">⚠️ 踩过的坑</span>
+          <code>data.results.HotpotQA.graphs_test.round_3.graph</code> 这个 import 在新版 AFlow 里<strong>不能直接用</strong>——
+          原 graph.py 引用 <code>metagpt.ext.aflow.*</code>,而那个 namespace 在 AFlow spinoff 时被删了。
+          我们的做法:<strong>把 graph.py 当 spec 看,在自己的 runner 里 reimplement</strong>(见 <code>src/aflow_runner_v2.py</code>)。
+        </div>
+
+        <h3>4. 怎么在 weak model 上跑(我们做的)</h3>
+        <p>主要难点是 AFlow 默认设计给 GPT 系列。换成本地 Qwen2.5-7B 需要:</p>
+        <ul>
+          <li>起一个 OpenAI 兼容 endpoint(我们用 <code>openai_shim_batched.py</code> 包装 transformers)</li>
+          <li>把 <code>config2.yaml</code> 的 base_url 指向那个 endpoint</li>
+          <li>Reimplement trained graph.py(因为旧 import 路径已失效)</li>
+        </ul>
+      </section>
+
+      <!-- =================== CH 8: Next =================== -->
+      <section id="ch-next" class="section">
+        <h2>
+          <span class="chapter-label">Chapter 8 · 继续深入</span>
+          🎯 下一步学习路径
+        </h2>
+
+        <h3>立即可做(15-30 分钟)</h3>
+        <ol>
+          <li>
+            <strong>看 4 个 trained workflow 的 graph.py</strong>:<br>
+            <code>data/aflow_workflows/{HotpotQA,DROP,GSM8K,MATH}/graph.py</code><br>
+            <span style="color: var(--text-muted); font-size: 14px;">对比它们结构差异,理解 MCTS 在不同任务上找到的不同模式</span>
+          </li>
+          <li>
+            <strong>打开 trace inspector</strong>:双击 <a href="aflow_inspector.html">aflow_inspector.html</a>,
+            拖入 <code>data/n200_traces/hotpotqa/traces.jsonl</code>
+            <br><span style="color: var(--text-muted); font-size: 14px;">点任意 query,看 workflow 真实跑起来的每个 node 输入输出。比看代码 100× 直观</span>
+          </li>
+          <li>
+            <strong>读我们的实验报告</strong>:<a href="EXPERIMENT_REPORT.md">EXPERIMENT_REPORT.md</a>
+            <br><span style="color: var(--text-muted); font-size: 14px;">看真实 Qwen-7B 跑这些 workflow 的数字和 failure analysis</span>
+          </li>
+        </ol>
+
+        <h3>深一层</h3>
+        <ul>
+          <li>读 <code>scripts/operators.py</code> 全部 operator(还有 Test, Format, Review, Revise, MdEnsemble 没讲)</li>
+          <li>读 <code>scripts/optimizer.py</code>,看 MCTS 具体实现</li>
+          <li>读 paper 原文:<a href="https://arxiv.org/abs/2410.10762" target="_blank">arXiv 2410.10762</a></li>
+        </ul>
+
+        <h3>如果想自己改进 workflow</h3>
+        <p>基于我们的 failure analysis,DROP benchmark 的 FORMAT step 在 weak model 上有 5.5% query 出 bug
+        (gold 是人名,FORMAT 输出却是数字)。可以试试:</p>
+        <ul>
+          <li>改 <code>REFINE_ANSWER_PROMPT</code> 让它强制保留 entity-level token</li>
+          <li>在 FORMAT 前加一道 Review operator,人名/日期/数字分类</li>
+          <li>直接换更大 model 当 FORMAT executor(因为 FORMAT 是最简单的 task)</li>
+        </ul>
+
+        <div class="callout aha">
+          <span class="callout-title">💡 Aha moment</span>
+          AFlow 不是黑盒。Trained workflow 是 plain Python,prompt 是 plain string。
+          你可以<strong>手动改任何一个</strong>,然后用 BaseBenchmark 测一下 score 变化。
+          这就是为什么写一个 trace inspector 比读 paper 更有用——直接看哪里失败再改。
+        </div>
+      </section>
+
+      <div class="footer">
+        <p>📖 本教程基于 5/14-5/16 在 Phoenix HPC 上跑过的 4 个 benchmark 完整实验。</p>
+        <p>
+          <a href="aflow_inspector.html">🔍 Trace inspector</a>
+          <span style="margin: 0 8px; color: var(--text-muted);">·</span>
+          <a href="EXPERIMENT_REPORT.md">📊 Experiment report</a>
+        </p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ============================================================
+// Build TOC + scrollspy
+// ============================================================
+const CHAPTERS = [
+  { id: "ch-intro",     num: "1", title: "AFlow 是什么" },
+  { id: "ch-model",     num: "2", title: "心智模型" },
+  { id: "ch-repo",      num: "3", title: "Repo 结构" },
+  { id: "ch-operators", num: "4", title: "核心 Operators" },
+  { id: "ch-anatomy",   num: "5", title: "解剖 workflow" },
+  { id: "ch-training",  num: "6", title: "训练原理" },
+  { id: "ch-run",       num: "7", title: "上手实战" },
+  { id: "ch-next",      num: "8", title: "继续深入" },
+];
+
+const tocEl = document.getElementById("toc");
+tocEl.innerHTML = CHAPTERS.map(c => `
+  <a href="#${c.id}" data-target="${c.id}" class="toc-item">
+    <span class="toc-num">${c.num}</span>
+    <span>${c.title}</span>
+  </a>
+`).join("");
+
+const sections = CHAPTERS.map(c => document.getElementById(c.id)).filter(Boolean);
+const tocLinks = tocEl.querySelectorAll(".toc-item");
+
+function updateActive() {
+  const scrollY = window.scrollY + 120;
+  let active = sections[0];
+  for (const s of sections) {
+    if (s.offsetTop <= scrollY) active = s;
+  }
+  tocLinks.forEach(l => l.classList.toggle("active", l.dataset.target === active.id));
+}
+document.addEventListener("scroll", updateActive, { passive: true });
+updateActive();
+
+// Smooth scroll
+tocLinks.forEach(l => l.addEventListener("click", e => {
+  if (!l.dataset.target) return;
+  e.preventDefault();
+  const target = document.getElementById(l.dataset.target);
+  if (target) window.scrollTo({ top: target.offsetTop - 80, behavior: "smooth" });
+}));
+
+// ============================================================
+// Mermaid (light theme to match overall design)
+// ============================================================
+mermaid.initialize({
+  startOnLoad: true,
+  theme: "default",
+  themeVariables: {
+    fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+    fontSize: "14px",
+    primaryColor: "#dbeafe",
+    primaryTextColor: "#1e3a8a",
+    primaryBorderColor: "#3b82f6",
+    lineColor: "#9ca3af",
+    secondaryColor: "#fef3c7",
+    tertiaryColor: "#f3f4f6",
+  },
+  flowchart: { curve: "basis", nodeSpacing: 40, rankSpacing: 50, padding: 12 },
+});
+</script>
+</body>
+</html>
